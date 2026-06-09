@@ -73,12 +73,23 @@ namespace HearThis.UI
 			SetStyle(ControlStyles.SupportsTransparentBackColor, true);
 			SetStyle(ControlStyles.ResizeRedraw, true);
 
+			// Add this line to force Windows to capture double-clicks for this control:
+			SetStyle(ControlStyles.StandardClick | ControlStyles.StandardDoubleClick, true);
+
 			MouseClick += OnMouseClick;
 		}
 
+		public event EventHandler<int> BlobDoubleClicked;
 		private void OnMouseClick(object sender, MouseEventArgs e)
 		{
 			SetValueFromMouseEvent(GetValueFromPosition(e.X), e.Button == MouseButtons.Left);
+		}
+
+		// A small helper method to safely notify listeners of the double-click
+		private void OnBlobDoubleClicked(int targetSegment)
+		{
+			// We will define this event or call an action hook next
+			BlobDoubleClicked?.Invoke(this, targetSegment);
 		}
 
 		public bool Finished => _value == SegmentCount && SegmentCount > 0;
@@ -131,6 +142,14 @@ namespace HearThis.UI
 			base.OnMouseDown(e);
 			if (Finished)
 				return;
+
+			// Capture the double-click count cleanly
+			if (e.Clicks == 2 && e.Button == MouseButtons.Left)
+			{
+				int clickedValue = GetValueFromPosition(e.X);
+				OnBlobDoubleClicked(clickedValue); // This fires the megaphone event!
+				return;
+			}
 
 			_capturedMouse = ThumbRectangle.Contains(e.X, e.Y);
 			if (!_capturedMouse)

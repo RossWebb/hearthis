@@ -33,6 +33,8 @@ namespace HearThis.UI
 {
 	public partial class RecordingToolControl : UserControl, IMessageFilter, ISupportInitialize, ILocalizable
 	{
+		// Change from private variable to a public static property so Shell can read it instantly
+		public static bool EditorModeActive { get; private set; } = false;
 		private const string kEmDashToIndicateExtraRecording = "\u2014";
 		private Project _project;
 		private Mode _currentMode;
@@ -345,6 +347,8 @@ namespace HearThis.UI
 			}
 			_project.LoadBook(_project.SelectedBook.BookNumber);
 			_scriptSlider.GetSegmentBrushesDelegate = GetSegmentBrushes;
+			// added by R.Webb+Gemini
+			_scriptSlider.BlobDoubleClicked += OnSliderBlobDoubleClicked;
 			UpdateSelectedBook();
 			_project.SelectedBookChanged += HandleSelectedBookChanged;
 		}
@@ -545,7 +549,7 @@ namespace HearThis.UI
 				_project.IsLineCurrentlyRecordable(_project.SelectedBook.BookNumber,
 				_project.SelectedChapterInfo.ChapterNumber1Based, _project.SelectedScriptBlock);
 			_audioButtonsControl.UpdateDisplay();
-
+	
 			if (_currentMode != Mode.ReadAndRecord)
 				return;
 			_scriptControl.RecordingInProgress = _audioButtonsControl.Recording;
@@ -620,17 +624,112 @@ namespace HearThis.UI
 					break;
 
 				case Keys.Space:
+					// If Editor Mode is ON, intercept the spacebar to protect against accidental overwrites
+					if (EditorModeActive)
+					{
+						if (m.Msg == WM_KEYDOWN)
+						{
+							MessageBox.Show(
+								"Editor Mode is ACTIVE.\n\nTo prevent accidental overwrites from GoldWave muscle memory, standard Spacebar recording is disabled.\n\nPlease use Ctrl + Space to record.",
+								"Record Protection Active",
+								MessageBoxButtons.OK,
+								MessageBoxIcon.Information
+							);
+						}
+						return true; // Stop the spacebar from doing anything else
+					}
+
+					// Otherwise (Standard Mode), function perfectly normally for standard recording sessions
 					if (m.Msg == WM_KEYDOWN)
 						_audioButtonsControl.SpaceGoingDown();
 					if (m.Msg == WM_KEYUP)
 						_audioButtonsControl.SpaceGoingUp();
-					break;
+
+					return true; // Handled normal spacebar processing cleanly
 
 				case Keys.P:
 					// If we open the dialog directly from within this method, it doesn't work to
 					// install a new Message Filter.
 					InvokeLaterOnUIThread(() => longLineButton_Click(this, EventArgs.Empty));
 					break;
+
+				case Keys.E:
+					// 1. First check: Are they trying to toggle the mode? (Ctrl + Shift + E)
+					if (Control.ModifierKeys == (Keys.Control | Keys.Shift))
+					{
+						if (m.Msg == WM_KEYDOWN)
+						{
+							EditorModeActive = !EditorModeActive;
+
+							Form mainForm = FindForm();
+							if (mainForm != null)
+							{
+								// Use reflection to break through the control hierarchy and find the button field
+								var field = mainForm.GetType().GetField("editModeIndicatorButton",
+									System.Reflection.BindingFlags.NonPublic |
+									System.Reflection.BindingFlags.Instance |
+									System.Reflection.BindingFlags.Public);
+
+								if (field != null)
+								{
+									var indicatorBtn = field.GetValue(mainForm) as ToolStripButton;
+									if (indicatorBtn != null)
+									{
+										// Toggle your custom crimson embossed button layout live!
+										indicatorBtn.Visible = EditorModeActive;
+									}
+								}
+
+								// Keep title baseline clean and padded
+								string currentText = mainForm.Text;
+								mainForm.Text = currentText + " ";
+								mainForm.Text = currentText.TrimEnd();
+								mainForm.Refresh();
+							}
+
+							// --- WINDOW-CENTERED POPUP DIALOG (CLEAN TEXT) ---
+							using (Form dialog = new Form())
+							{
+								dialog.Text = "Mode Toggled";
+								dialog.Size = new System.Drawing.Size(400, 160);
+								dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+								dialog.MaximizeBox = false;
+								dialog.MinimizeBox = false;
+								dialog.StartPosition = FormStartPosition.CenterParent;
+
+								Label msgLabel = new Label();
+								msgLabel.Text = $"Editor Mode is now:\n\n{(EditorModeActive ? "ENABLED (Spacebar Protected)" : "DISABLED (Standard Recording)")}";
+								msgLabel.Location = new System.Drawing.Point(30, 25);
+								msgLabel.Size = new System.Drawing.Size(340, 50);
+								// Standard generic plain text formatting (No bold flag)
+								msgLabel.Font = new System.Drawing.Font(System.Drawing.FontFamily.GenericSansSerif, 10, System.Drawing.FontStyle.Regular);
+								dialog.Controls.Add(msgLabel);
+
+								Button okButton = new Button();
+								okButton.Text = "OK";
+								okButton.DialogResult = DialogResult.OK;
+								okButton.Location = new System.Drawing.Point(160, 85);
+								dialog.Controls.Add(okButton);
+								dialog.AcceptButton = okButton;
+
+								dialog.ShowDialog(mainForm ?? (IWin32Window)this);
+							}
+						}
+						return true;
+					}
+
+					// 2. Second check: If it's just a normal 'E' press, ONLY run it if Editor Mode is active
+					if (EditorModeActive)
+					{
+						if (m.Msg == WM_KEYDOWN)
+						{
+							int currentLineIndex = _project.SelectedScriptBlock;
+							OnSliderBlobDoubleClicked(this, currentLineIndex);
+						}
+						return true;
+					}
+
+					return false;
 
 				case Keys.Delete:
 					if (_deleteRecordingButton.Visible && _deleteRecordingButton.Enabled)
@@ -639,9 +738,9 @@ namespace HearThis.UI
 
 				default:
 					return false;
-			}
+			} // <--- THIS closes the switch (keys) statement perfectly!
 
-			return true;
+			return true; // Closes the PreFilterMessage method success path
 		}
 
 		private void UpdateSelectedBook()
@@ -1507,6 +1606,81 @@ namespace HearThis.UI
 			{
 				_panelRecordingDeviceBorder.BackColor = BackColor;
 			}
+		}
+		// Added by R.Webb+Gemini
+		private void OnSliderBlobDoubleClicked(object sender, int targetSegment)
+		{
+			if (_project == null || CurrentScriptLine == null)
+				return;
+
+			// Professional Guard: block double-clicks if we aren't explicitly in Editor Mode!
+			if (!EditorModeActive)
+			{
+				return;
+			}
+
+			// Grab the path to the recorded audio file for this segment
+			string audioFilePath = _project.ClipFilePathForSelectedLine;
+
+			// If the file doesn't exist yet, there's nothing to edit!
+			if (!File.Exists(audioFilePath))
+			{
+				MessageBox.Show(this, "No recording exists yet for this segment to edit.", "HearThis");
+				return;
+			}
+
+			// Get the audio editor program path (.exe)
+			string editorPath = GetAudioEditorPath();
+			if (string.IsNullOrEmpty(editorPath) || !File.Exists(editorPath))
+				return; // User canceled or file wasn't found
+
+			// Launch the external editor with the file wrapped in quotes
+			try
+			{
+				Process.Start(editorPath, $"\"{audioFilePath}\"");
+			}
+			catch (Exception ex)
+			{
+				MessageBox.Show(this, $"Failed to open the audio editor:\n{ex.Message}", "Error");
+			}
+		}
+
+		private string GetAudioEditorPath()
+		{
+			// Save the choice in the user's AppData directory so it survives restarts
+			string configDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HearThisCustom");
+			string configFile = Path.Combine(configDir, "editor.txt");
+
+			if (File.Exists(configFile))
+			{
+				string path = File.ReadAllText(configFile).Trim();
+				if (File.Exists(path))
+					return path;
+			}
+
+			// Pop up a standard Windows File Selector if we don't have it saved
+			using (OpenFileDialog openFileDialog = new OpenFileDialog())
+			{
+				openFileDialog.Filter = "Executable Files (*.exe)|*.exe|All Files (*.*)|*.*";
+				openFileDialog.Title = "Select your preferred Audio Editor (e.g., GoldWave, Audacity)";
+
+				if (openFileDialog.ShowDialog(this) == DialogResult.OK)
+				{
+					try
+					{
+						if (!Directory.Exists(configDir))
+							Directory.CreateDirectory(configDir);
+						File.WriteAllText(configFile, openFileDialog.FileName);
+						return openFileDialog.FileName;
+					}
+					catch (Exception)
+					{
+						return openFileDialog.FileName;
+					}
+				}
+			}
+
+			return null;
 		}
 
 		// This is a very stripped-down version of the code from PtxUtils. In our case, we

@@ -78,6 +78,70 @@ namespace HearThis.UI
 			}
 
 			Program.RegisterLocalizable(this);
+
+			// --- Added by R.Webb+Gemini for custom audio editing fork ---
+			// 1. Core Branding Handler
+			TextChanged += (sender, args) =>
+			{
+				const string forkSuffix = " -- (R.Webb Custom Audio Editing Fork)";
+				if (!Text.Contains(forkSuffix))
+				{
+					Text += forkSuffix;
+				}
+			};
+
+			// 2. Padding Action with High-Visibility Text Modifiers
+			Action updateRightJustifiedTitle = () =>
+			{
+				const string forkSuffix = " -- (R.Webb Custom Audio Editing Fork)";
+
+				// Standard warning text vs Active screaming block indicators
+				const string helpSuffix = "[ctrl-shift-e for edit mode]";
+				const string activeSuffix = " [EDIT MODE ACTIVE - ctrl-shift-e to exit]";
+
+				string cleanText = Text.Split(new[] { " -- (" }, StringSplitOptions.None)[0];
+				string leftSide = cleanText + forkSuffix;
+				string rightSide = RecordingToolControl.EditorModeActive ? activeSuffix : helpSuffix;
+
+				int charWidthEstimate = 7;
+				int totalCharsPossible = ClientSize.Width / charWidthEstimate;
+				int takenSpace = leftSide.Length + rightSide.Length;
+				int neededSpaces = totalCharsPossible - takenSpace - 10;
+
+				if (neededSpaces < 1) neededSpaces = 1;
+
+				string paddedText = leftSide + new string(' ', neededSpaces) + rightSide;
+				if (Text != paddedText)
+				{
+					Text = paddedText;
+				}
+			};
+
+			Resize += (sender, args) => updateRightJustifiedTitle();
+
+			// Trigger a text redraw immediately upon loading
+			Activated += (sender, args) => updateRightJustifiedTitle();
+
+			// 3. High-Priority Foreground Red Guard Line Drawing
+			// We hook into the Paint event but draw directly onto the window's handle 
+			// to ensure it cuts directly over the top of HearThis's internal control panels!
+			// 3. Thick Foreground Supervisor Safety Wire Drawing
+			Paint += (sender, args) =>
+			{
+				updateRightJustifiedTitle();
+
+				if (RecordingToolControl.EditorModeActive)
+				{
+					// Force the graphics engine to draw directly over everything
+					using (System.Drawing.Graphics g = this.CreateGraphics())
+					// 12-pixel ultra-thick distinctive off-red supervisor safety belt
+					using (var pen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(200, 45, 45), 12))
+					{
+						// Dropping the Y coordinate to 2 ensures it drops clear of any OS frame clipping mask
+						g.DrawLine(pen, 0, 2, ClientSize.Width, 2);
+					}
+				}
+			};
 		}
 
 		/// <summary>

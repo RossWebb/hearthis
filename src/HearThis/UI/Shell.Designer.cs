@@ -74,10 +74,74 @@ namespace HearThis.UI
             // 
             this.l10NSharpExtender1.LocalizationManagerId = "HearThis";
             this.l10NSharpExtender1.PrefixForNewItems = "Shell";
-            // 
-            // toolStripButtonSave
-            // 
-            this.toolStripButtonSave.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
+			// 
+			// 
+			// editModeIndicatorButton ... R.Webb+Gemini to indicate visally app is in Pro Edit mode..
+			// 
+			this.editModeIndicatorButton = new System.Windows.Forms.ToolStripButton();
+			this.editModeIndicatorButton.Name = "editModeIndicatorButton";
+			// Increase the button dimensions slightly to fit the expanded icon
+			this.editModeIndicatorButton.Size = new System.Drawing.Size(32, 28);
+			this.editModeIndicatorButton.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Bold);
+			this.editModeIndicatorButton.ForeColor = System.Drawing.Color.White;
+
+			// *** KEY CHANGE *** Display style is now Image ONLY.
+			// We are drawing the "E" directly *onto* the image canvas, so we no longer need the separate text label display.
+			this.editModeIndicatorButton.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+
+			this.editModeIndicatorButton.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
+			this.editModeIndicatorButton.Visible = false;
+
+			// --- Generate the Professional High-Fidelity Icon Tile ---
+			// --- Generate the Max-Width High-Fidelity Icon Tile ---
+
+			// Maintain the 32x32 base, but we will draw right to the edges so it scales down chunkier
+			System.Drawing.Bitmap bmp = new System.Drawing.Bitmap(32, 32);
+
+			using (System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(bmp))
+			{
+				g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+				g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+				// 1. PUSH TO THE EDGES: Start at 0,0 and fill the entire 32x32 canvas
+				System.Drawing.Rectangle rect = new System.Drawing.Rectangle(0, 0, 32, 32);
+
+				// 2. Draw the Subdued Crimson Tile (Fill)
+				using (System.Drawing.Brush fillBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(165, 45, 45)))
+				{
+					g.FillRectangle(fillBrush, rect);
+				}
+
+				// 3. THICKER BORDER: Draw a 2-pixel wide brighter silver/grey frame
+				using (System.Drawing.Pen borderPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(190, 190, 190), 2))
+				{
+					// Inset the frame slightly just to account for the pen width thickness
+					g.DrawRectangle(borderPen, 1, 1, 30, 30);
+				}
+
+				// 4. Draw the Embossed "E"
+				string text = "E";
+				// Dropped font size slightly to 14F so the text doesn't clip when scaled down by HearThis
+				using (System.Drawing.Font font = new System.Drawing.Font("Segoe UI", 16F, System.Drawing.FontStyle.Bold))
+				using (System.Drawing.Brush textBrush = new System.Drawing.SolidBrush(System.Drawing.Color.White))
+				{
+					System.Drawing.SizeF textSize = g.MeasureString(text, font);
+
+					// FIXED: Changed textSize.Height to textSize.Width for horizontal alignment
+					float x = ((32 - textSize.Width) / 2);
+
+					// Nudge the Y coordinate upward by changing the +1 to a 0 or -1
+					float y = ((32 - textSize.Height) / 2) - 1;
+
+					g.DrawString(text, font, textBrush, x, y);
+				}
+			}
+
+			this.editModeIndicatorButton.Image = bmp;
+			// 
+			// toolStripButtonSave
+			// 
+			this.toolStripButtonSave.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
             this.toolStripButtonSave.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
             this.toolStripButtonSave.Image = global::HearThis.Properties.Resources.TopToolbar_Save;
             this.toolStripButtonSave.ImageTransparentColor = System.Drawing.Color.Magenta;
@@ -146,8 +210,9 @@ namespace HearThis.UI
             this._uiLanguageMenu,
             this._btnMode,
             this.toolStripButtonChooseProject,
+			this.editModeIndicatorButton, // R.Webb+Gemini: Added to indicate Pro Edit mode
             this.toolStripButtonSave,
-            this.readAndRecordToolStripMenuItem,
+			this.readAndRecordToolStripMenuItem,
             this.checkForProblemsToolStripMenuItem});
             this.l10NSharpExtender1.SetLocalizableToolTip(this._toolStrip, null);
             this.l10NSharpExtender1.SetLocalizationComment(this._toolStrip, null);
@@ -465,6 +530,7 @@ namespace HearThis.UI
 		private System.Windows.Forms.Panel _multiVoiceMarginPanel;
 		private System.Windows.Forms.ToolStripMenuItem checkForProblemsToolStripMenuItem;
 		private System.Windows.Forms.ToolStripMenuItem readAndRecordToolStripMenuItem;
+		private System.Windows.Forms.ToolStripButton editModeIndicatorButton;
 	}
 }
 
