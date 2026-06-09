@@ -1,4 +1,53 @@
-Using HearThis™, communities can record and distribute their translated Scripture for themselves.
+# HearThis - Custom Pro Editor Variant
+(Standard ReadMe.md is below this)
+
+Branch Profile: Audio Editing Fork (R. Webb Custom)
+
+This repository is a specialized custom fork of the core HearThis audio synchronization utility. It introduces a secure, key-locked Supervisor Editor Mode designed to prevent accidental modifications, deletion, or re-recording of existing audio clips during standard tracking sessions, while permitting full administrative access when explicitly unlocked.
+
+---
+
+## Key Architectural Modifications
+
+### 1. Global State Guard
+* File Modified: RecordingToolControl.cs
+* Implementation: Added a central static tracking variable to act as the universal safety gate across system components.
+* Variable Name: public static bool EditorModeActive = false;
+
+### 2. Hotkey Toggle and Confirmation UI
+* File Modified: RecordingToolControl.cs (Inside ProcessCmdKey)
+* Behavior: Traps the Ctrl + Shift + E key combination to safely toggle the editing state. 
+* Logic Framework:
+  * Calculates the exact screen-center coordinates of the parent form wrapper using FindForm().
+  * Spawns a clean, focused confirmation dialog box to notify the supervisor.
+  * Uses C# reflection to break through the control container layers, find the custom toolbar indicator button, and immediately sync its visibility to match the runtime state.
+
+### 3. Double-Click Safety Trap
+* File Modified: RecordingToolControl.cs (Inside OnSliderBlobDoubleClicked)
+* Behavior: Places a strict guard clause at the absolute entry point of the native waveform/slider blob double-click pipeline. If EditorModeActive is false, the method cleanly returns and blocks any editing execution before the native clip pipeline can begin.
+
+### 4. Native UI Dashboard Indicator (The Crimson E Tile)
+* Files Modified: Shell.Designer.cs and Shell.cs
+* Positioning: Configured as a right-aligned ToolStripButton integrated directly into the upper-right menu bar array, nesting perfectly between the Save icon and the Project Folder icon.
+* Layout Matrix: [Read and Record Menu] ... [Project Icon] [ E TILE ] [SAVE]
+* Dynamic Graphic Rendering Engine:
+  * Generates its 32x32 pixel design completely in memory at application runtime, bypassing external file-path dependencies.
+  * Fills the canvas with a solid, subdued supervisor crimson tile background (RGB: 165, 45, 45).
+  * Draws a distinct 2-pixel silver-grey frame border (RGB: 190, 190, 190) to cleanly blend with the application's native dark-mode theme.
+  * Embosses a bold white capital letter E onto the absolute center of the red canvas block, utilizing custom horizontal and vertical baseline text-rendering math to offset row height limits.
+
+---
+
+## Build and Compilation Specifications
+* Framework Target: Compiles smoothly using standard .NET development toolchains (Ctrl + Shift + B).
+* Expected Runtime Behavior: On startup, the safety lock is fully active and the red dashboard tile is hidden. Pressing Ctrl + Shift + E prompts the confirmation window, resets title baseline padding dynamically, and safely arms or disarms the wave editing gates instantly without requiring a software reboot.
+
+---
+
+
+## ---- Standard Github HearThis Readme contents
+
+Using HearThisâ„¢, communities can record and distribute their translated Scripture for themselves.
 
 # Users
 
